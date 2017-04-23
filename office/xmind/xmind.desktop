@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Exec=xmind
+Name=XMind
+GenericName=Data Mining Tool
+Comment=XMind
+Icon=xmind
+StartupNotify=true
+Categories=Office;
