@@ -22,7 +22,8 @@
 #  ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 PRGNAM=xmind
-VERSION=${VERSION:-8-update1}
+VERSION=${VERSION:-8-update2}
+PKGVERSION=${PKGVERSION:-8update2}
 BUILD=${BUILD:-1}
 TAG=${TAG:-_SBo}
 
@@ -41,31 +42,43 @@ OUTPUT=${OUTPUT:-/tmp}
 set -e
 
 rm -rf $PKG
-mkdir -p $TMP $PKG/opt $OUTPUT
-cd $PKG/opt
+mkdir -p $TMP $PKG/opt/$PRGNAM $OUTPUT
+cd $PKG/opt/$PRGNAM
 
 unzip $CWD/$PRGNAM-$VERSION-linux.zip
 
 if [ "$ARCH" = "i586" ]; then
     BIN="_amd64"
-    SCR="_i386"
-    rm -rf $PKG/opt/XMind$BIN
+    SRC="_i386"
+    rm -rf $PKG/opt/$PRGNAM/XMind$BIN
 elif [ "$ARCH" = "x86_64" ]; then
       BIN="_i386"
-      SCR="_amd64"
-      rm -rf $PKG/opt/XMind$BIN
+      SRC="_amd64"
+      rm -rf $PKG/opt/$PRGNAM/XMind$BIN
 else 
       echo "$ARCH is not supported...\n ; exit 1"
 fi
 
-rm $PKG/opt/setup.sh
+# Remove unused
+rm $PKG/opt/$PRGNAM/setup.sh
+
 mkdir -p $PKG/usr/bin
+# Add a wrapper to run xmind from /usr/bin
+# and copy configuration out of /opt to user's home
 cat << EOF > $PKG/usr/bin/$PRGNAM
 #!/bin/sh
-cd /opt/xmind/XMind$SCR
-/opt/xmind/XMind$SCR/XMind $@
+if [ ! -f ~/.xmind/configuration/config.ini -o ~/.xmind/configuration/config.ini -ot /opt/xmind/XMind/configuration/config.ini ]; then
+	mkdir -p ~/.xmind/configuration
+	cp -r /opt/xmind/XMind$SRC/configuration/* ~/.xmind/configuration/
+fi
+/opt/xmind/XMind$SRC/XMind $@
 EOF
 chmod 0755 $PKG/usr/bin/$PRGNAM
+
+#Change data and configuration stuff location to user's home instead of /opt
+sed -e "s|./configuration|@user.home/.xmind/configuration|" \
+    -e "s|../workspace|@user.home/.xmind/workspace|" \
+    -i $PKG/opt/xmind/XMind$SRC/XMind.ini
 
 cd $PKG
 
@@ -73,19 +86,26 @@ mkdir -p $PKG/usr/share/pixmaps $PKG/usr/share/applications
 install -D -m 0644 $CWD/$PRGNAM.desktop $PKG/usr/share/applications/$PRGNAM.desktop
 install -D -m 0644 $CWD/$PRGNAM.png $PKG/usr/share/pixmaps/$PRGNAM.png
 
-mkdir -p $PKG/usr/doc/$PRGNAM-$VERSION
-cp -a $PKG/opt/*.html $PKG/usr/doc/$PRGNAM-$VERSION
-cat $CWD/$PRGNAM.SlackBuild > $PKG/usr/doc/$PRGNAM-$VERSION/$PRGNAM.SlackBuild
-cd $PKG/usr/doc/$PRGNAM-$VERSION
-chown -R root:root .
+cd $PKG/opt/$PRGNAM
+mkdir -p $PKG/usr/doc/$PRGNAM-$PKGVERSION
+mv *.html *.txt $PKG/usr/doc/$PRGNAM-$PKGVERSION
 cd -
+cat $CWD/$PRGNAM.SlackBuild > $PKG/usr/doc/$PRGNAM-$PKGVERSION/$PRGNAM.SlackBuild
 
 mkdir -p $PKG/install
 cat $CWD/slack-desc > $PKG/install/slack-desc
 cat $CWD/doinst.sh > $PKG/install/doinst.sh
 
-find $PKG -print0 | xargs -0 file | grep -e "executable" -e "shared object" | grep ELF \
-	  | cut -f 1 -d : | xargs strip --strip-unneeded 2> /dev/null || true
+# Fix ownership and permissions and make the package
+chown -R root:root .
+find . -type d -exec chmod 755 {} \;
+find -L . \
+ \( -perm 777 -o -perm 775 -o -perm 750 -o -perm 711 -o -perm 555 \
+  -o -perm 511 \) -exec chmod 755 {} \; -o \
+ \( -perm 666 -o -perm 664 -o -perm 640 -o -perm 600 -o -perm 444 \
+  -o -perm 440 -o -perm 400 \) -exec chmod 644 {} \;
 
-cd $PKG
-/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+find $PKG -print0 | xargs -0 file | grep -e "executable" -e "shared object" | grep ELF \
+  | cut -f 1 -d : | xargs strip --strip-unneeded 2> /dev/null || true
+
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$PKGVERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
